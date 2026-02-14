@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>YouTube Playlist Progress Tracker</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --surface: #ffffff;
+      --surface-muted: #f8f9ff;
+      --text: #172034;
+      --text-muted: #64748b;
+      --border: #e5eaf3;
+      --primary: #6c8cff;
+      --primary-hover: #5978eb;
+      --success: #34c759;
+      --danger: #ff6b6b;
+      --shadow-sm: 0 1px 3px rgba(23, 32, 52, 0.08);
+      --shadow-md: 0 8px 24px rgba(15, 23, 42, 0.07);
+      --radius-card: 12px;
+      --radius-control: 10px;
+      --space-1: 8px;
+      --space-2: 16px;
+      --space-3: 24px;
+      --space-4: 32px;
+      --space-5: 40px;
+    }
+
+    body.dark {
+      --bg: #0f172a;
+      --surface: #182236;
+      --surface-muted: #1e2a44;
+      --text: #f1f5f9;
+      --text-muted: #9fb2c9;
+      --border: #2b3a58;
+      --primary: #8ea4ff;
+      --primary-hover: #7f95ee;
+      --success: #4ade80;
+      --danger: #fb7185;
+      --shadow-sm: 0 2px 8px rgba(2, 6, 23, 0.35);
+      --shadow-md: 0 10px 28px rgba(2, 6, 23, 0.45);
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      transition: background 0.25s ease, color 0.25s ease;
+    }
+
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 var(--space-3);
+      background: color-mix(in srgb, var(--surface) 90%, transparent);
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(10px);
+      z-index: 100;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 1.35rem;
+      font-weight: 700;
+    }
+
+    .brand-icon {
+      width: 34px;
+      height: 34px;
+      border-radius: 10px;
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 3px;
+      padding: 6px;
+      background: var(--surface-muted);
+      border: 1px solid var(--border);
+    }
+
+    .brand-icon span {
+      border-radius: 4px;
+      background: linear-gradient(140deg, #90a8ff, #6d7de7);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .icon-btn {
+      width: 38px;
+      height: 38px;
+      border: 1px solid var(--border);
+      background: var(--surface);
+      color: var(--text-muted);
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: transform 0.2s ease, background 0.2s ease;
+    }
+
+    .icon-btn:hover { transform: translateY(-1px); background: var(--surface-muted); }
+
+    main {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 104px var(--space-3) var(--space-5);
+      display: grid;
+      gap: var(--space-3);
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-card);
+      box-shadow: var(--shadow-md);
+    }
+
+    .summary-card {
+      padding: var(--space-3);
+      display: grid;
+      grid-template-columns: 1.1fr 1fr;
+      gap: var(--space-3);
+      align-items: center;
+    }
+
+    .summary-left {
+      display: grid;
+      place-items: center;
+      min-height: 280px;
+    }
+
+    .pie-wrap {
+      position: relative;
+      width: 220px;
+      aspect-ratio: 1;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: conic-gradient(var(--success) calc(var(--progress, 0) * 1%), var(--danger) 0);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .pie-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 28px;
+      border-radius: 50%;
+      background: var(--surface);
+    }
+
+    .pie-center {
+      position: relative;
+      text-align: center;
+      display: grid;
+      gap: 4px;
+    }
+
+    .pie-center strong { font-size: 2.05rem; line-height: 1; }
+    .pie-center span { color: var(--text-muted); font-size: 0.95rem; }
+
+    .stat-grid {
+      display: grid;
+      gap: 12px;
+    }
+
+    .stat-box {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 14px 16px;
+      background: var(--surface-muted);
+    }
+
+    .stat-box p { margin: 0; color: var(--text-muted); font-size: 0.92rem; }
+    .stat-box h3 { margin: 4px 0 0; font-size: 1.7rem; }
+
+    .section-head {
+      margin: 0;
+      padding: 20px 24px;
+      border-bottom: 1px solid var(--border);
+      font-size: 1.1rem;
+    }
+
+    .playlist-form {
+      padding: 22px 24px 24px;
+      display: grid;
+      gap: 16px;
+      grid-template-columns: 1fr 1fr auto;
+      align-items: end;
+    }
+
+    .field {
+      display: grid;
+      gap: 8px;
+    }
+
+    .field label { font-size: 0.94rem; font-weight: 500; color: var(--text-muted); }
+
+    .input {
+      width: 100%;
+      height: 44px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-control);
+      background: var(--surface);
+      color: var(--text);
+      padding: 0 14px;
+      font-size: 0.95rem;
+      outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .input:focus { border-color: var(--primary); box-shadow: 0 0 0 4px color-mix(in srgb, var(--primary) 20%, transparent); }
+
+    .btn {
+      height: 44px;
+      border: none;
+      border-radius: var(--radius-control);
+      padding: 0 20px;
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: var(--shadow-sm);
+      transition: background 0.2s ease, transform 0.2s ease;
+    }
+
+    .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
+
+    .playlists-grid {
+      display: grid;
+      gap: var(--space-3);
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .playlist-card { padding: 18px 18px 16px; }
+
+    .playlist-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 14px;
+      gap: 10px;
+    }
+
+    .playlist-title { margin: 0; font-size: 1.06rem; }
+
+    .progress-top {
+      margin-bottom: 14px;
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.88rem;
+      color: var(--text-muted);
+    }
+
+    .progress-track {
+      width: 100%;
+      height: 8px;
+      background: color-mix(in srgb, var(--primary) 15%, var(--surface));
+      border-radius: 999px;
+      overflow: hidden;
+      margin-bottom: 14px;
+    }
+
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #7aa2ff, #5d79f3);
+      border-radius: inherit;
+      width: 0;
+      transition: width 0.25s ease;
+    }
+
+    .video-list {
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--surface-muted);
+    }
+
+    .video-row {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 10px;
+      padding: 11px 12px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .video-row:last-child { border-bottom: none; }
+
+    .video-row a { color: var(--text-muted); }
+
+    .video-title {
+      margin: 0;
+      font-size: 0.93rem;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    .video-row input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--primary);
+      cursor: pointer;
+    }
+
+    .video-row.done .video-title {
+      text-decoration: line-through;
+      color: var(--text-muted);
+    }
+
+    .section-title {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+
+    @media (max-width: 1024px) {
+      .summary-card { grid-template-columns: 1fr; }
+      .summary-left { min-height: 220px; }
+      .playlist-form {
+        grid-template-columns: 1fr;
+      }
+      .playlists-grid { grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 640px) {
+      .navbar { padding: 0 14px; }
+      main { padding: 94px 14px 26px; }
+      .brand { font-size: 1.1rem; }
+      .summary-card,
+      .playlist-form,
+      .section-head,
+      .playlist-card { padding-left: 14px; padding-right: 14px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="navbar">
+    <div class="brand">
+      <span class="brand-icon" aria-hidden="true"><span></span><span></span><span></span><span></span></span>
+      Playlist Tracker
+    </div>
+    <div class="nav-actions">
+      <button class="icon-btn" aria-label="Profile">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21a8 8 0 0 0-16 0"></path><circle cx="12" cy="7" r="4"></circle></svg>
+      </button>
+      <button class="icon-btn" id="themeToggle" aria-label="Toggle dark mode">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"></path></svg>
+      </button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card summary-card">
+      <div class="summary-left">
+        <div class="pie-wrap" id="pieChart">
+          <div class="pie-center">
+            <strong id="overallPercent">0%</strong>
+            <span>Overall Progress</span>
+          </div>
+        </div>
+      </div>
+      <div class="stat-grid">
+        <div class="stat-box"><p>Total Videos</p><h3 id="totalVideos">120</h3></div>
+        <div class="stat-box"><p>Completed</p><h3 id="completedVideos">45</h3></div>
+        <div class="stat-box"><p>Remaining</p><h3 id="remainingVideos">75</h3></div>
+        <div class="stat-box"><p>Progress</p><h3 id="overallLabel">37%</h3></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="section-head">Add Playlist</h2>
+      <form class="playlist-form" id="playlistForm">
+        <div class="field">
+          <label for="playlistName">Playlist Name</label>
+          <input class="input" id="playlistName" placeholder="e.g. JavaScript Mastery" required />
+        </div>
+        <div class="field">
+          <label for="playlistLink">YouTube Playlist Link</label>
+          <input class="input" type="url" id="playlistLink" placeholder="https://youtube.com/playlist?list=..." required />
+        </div>
+        <button class="btn" type="submit">Add Playlist</button>
+      </form>
+    </section>
+
+    <section>
+      <h2 class="section-title">Your Playlists</h2>
+    </section>
+
+    <section class="playlists-grid" id="playlistsGrid"></section>
+  </main>
+
+  <template id="playlistTemplate">
+    <article class="card playlist-card">
+      <div class="playlist-header">
+        <h3 class="playlist-title"></h3>
+        <button class="icon-btn" aria-label="Playlist menu">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+        </button>
+      </div>
+      <div class="progress-top">
+        <span>Progress</span>
+        <strong class="progress-text">0 / 0 Completed</strong>
+      </div>
+      <div class="progress-track"><div class="progress-fill"></div></div>
+      <div class="video-list"></div>
+    </article>
+  </template>
+
+  <script>
+    const state = {
+      playlists: [
+        {
+          title: "Control Systems Engineering",
+          link: "https://youtube.com/playlist?list=control",
+          videos: [
+            { title: "Lecture 1 – Introduction", done: true, url: "#" },
+            { title: "Lecture 2 – Transfer Function", done: true, url: "#" },
+            { title: "Lecture 3 – Block Diagram", done: false, url: "#" },
+            { title: "Lecture 4 – Signal Flow Graphs", done: false, url: "#" },
+            { title: "Lecture 5 – Mason's Gain Formula", done: false, url: "#" }
+          ]
+        },
+        {
+          title: "Machine Learning Fundamentals",
+          link: "https://youtube.com/playlist?list=ml",
+          videos: [
+            { title: "Lecture 1 – Introduction to ML", done: true, url: "#" },
+            { title: "Lecture 2 – Linear Regression", done: true, url: "#" },
+            { title: "Lecture 3 – Logistic Regression", done: true, url: "#" },
+            { title: "Lecture 4 – Neural Networks", done: false, url: "#" },
+            { title: "Lecture 5 – Deep Learning Basics", done: false, url: "#" },
+            { title: "Lecture 6 – Convolutional Networks", done: false, url: "#" }
+          ]
+        },
+        {
+          title: "React.js Complete Course",
+          link: "https://youtube.com/playlist?list=react",
+          videos: [
+            { title: "Lecture 1 – React Basics", done: true, url: "#" },
+            { title: "Lecture 2 – Components & Props", done: true, url: "#" },
+            { title: "Lecture 3 – State & Lifecycle", done: true, url: "#" },
+            { title: "Lecture 4 – Hooks Introduction", done: true, url: "#" },
+            { title: "Lecture 5 – useEffect Hook", done: false, url: "#" }
+          ]
+        },
+        {
+          title: "Data Structures & Algorithms",
+          link: "https://youtube.com/playlist?list=dsa",
+          videos: [
+            { title: "Lecture 1 – Arrays & Strings", done: true, url: "#" },
+            { title: "Lecture 2 – Linked Lists", done: false, url: "#" },
+            { title: "Lecture 3 – Stacks & Queues", done: false, url: "#" },
+            { title: "Lecture 4 – Trees & Graphs", done: false, url: "#" },
+            { title: "Lecture 5 – Sorting Algorithms", done: false, url: "#" },
+            { title: "Lecture 6 – Dynamic Programming", done: false, url: "#" }
+          ]
+        }
+      ]
+    };
+
+    const playlistGrid = document.getElementById("playlistsGrid");
+    const template = document.getElementById("playlistTemplate");
+
+    function createVideoRow(video, playlistIndex, videoIndex) {
+      const row = document.createElement("div");
+      row.className = `video-row${video.done ? " done" : ""}`;
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = video.done;
+      checkbox.addEventListener("change", () => {
+        state.playlists[playlistIndex].videos[videoIndex].done = checkbox.checked;
+        render();
+      });
+
+      const title = document.createElement("p");
+      title.className = "video-title";
+      title.textContent = video.title;
+
+      const link = document.createElement("a");
+      link.href = video.url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 3h7v7"></path><path d="M10 14L21 3"></path><path d="M21 14v7h-7"></path><path d="M3 10V3h7"></path><path d="M3 21l7-7"></path></svg>';
+      link.setAttribute("aria-label", "Open video");
+
+      row.append(checkbox, title, link);
+      return row;
+    }
+
+    function renderStats() {
+      const totals = state.playlists.reduce((acc, playlist) => {
+        const total = playlist.videos.length;
+        const completed = playlist.videos.filter((v) => v.done).length;
+        acc.total += total;
+        acc.completed += completed;
+        return acc;
+      }, { total: 0, completed: 0 });
+
+      const remaining = totals.total - totals.completed;
+      const percent = totals.total ? Math.round((totals.completed / totals.total) * 100) : 0;
+
+      document.getElementById("totalVideos").textContent = totals.total;
+      document.getElementById("completedVideos").textContent = totals.completed;
+      document.getElementById("remainingVideos").textContent = remaining;
+      document.getElementById("overallPercent").textContent = `${percent}%`;
+      document.getElementById("overallLabel").textContent = `${percent}%`;
+      document.getElementById("pieChart").style.setProperty("--progress", percent);
+    }
+
+    function renderPlaylists() {
+      playlistGrid.innerHTML = "";
+      state.playlists.forEach((playlist, playlistIndex) => {
+        const node = template.content.cloneNode(true);
+        const card = node.querySelector(".playlist-card");
+        const title = node.querySelector(".playlist-title");
+        const progressFill = node.querySelector(".progress-fill");
+        const progressText = node.querySelector(".progress-text");
+        const list = node.querySelector(".video-list");
+
+        title.textContent = playlist.title;
+
+        const total = playlist.videos.length;
+        const completed = playlist.videos.filter((video) => video.done).length;
+        const progress = total ? Math.round((completed / total) * 100) : 0;
+
+        progressText.textContent = `${completed} / ${total} Completed`;
+        progressFill.style.width = `${progress}%`;
+
+        playlist.videos.forEach((video, videoIndex) => {
+          list.appendChild(createVideoRow(video, playlistIndex, videoIndex));
+        });
+
+        playlistGrid.appendChild(card);
+      });
+    }
+
+    function render() {
+      renderStats();
+      renderPlaylists();
+    }
+
+    document.getElementById("playlistForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const nameInput = document.getElementById("playlistName");
+      const linkInput = document.getElementById("playlistLink");
+
+      const title = nameInput.value.trim();
+      const link = linkInput.value.trim();
+
+      if (!title || !link) return;
+
+      state.playlists.unshift({
+        title,
+        link,
+        videos: [
+          { title: "Lecture 1 – Introduction", done: false, url: link },
+          { title: "Lecture 2 – Transfer Function", done: false, url: link },
+          { title: "Lecture 3 – Block Diagram", done: false, url: link }
+        ]
+      });
+
+      event.target.reset();
+      render();
+    });
+
+    document.getElementById("themeToggle").addEventListener("click", () => {
+      document.body.classList.toggle("dark");
+    });
+
+    render();
+  </script>
+</body>
+</html>
