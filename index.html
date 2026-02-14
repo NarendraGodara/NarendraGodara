@@ -243,6 +243,17 @@
 
     .btn:hover { background: var(--primary-hover); transform: translateY(-1px); }
 
+    .form-message {
+      grid-column: 1 / -1;
+      margin: 0;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      min-height: 20px;
+    }
+
+    .form-message.error { color: var(--danger); }
+    .form-message.success { color: var(--success); }
+
     .playlists-grid {
       display: grid;
       gap: var(--space-3);
@@ -397,6 +408,7 @@
           <input class="input" type="url" id="playlistLink" placeholder="https://youtube.com/playlist?list=..." required />
         </div>
         <button class="btn" type="submit">Add Playlist</button>
+        <p class="form-message" id="formMessage" aria-live="polite"></p>
       </form>
     </section>
 
@@ -478,6 +490,75 @@
 
     const playlistGrid = document.getElementById("playlistsGrid");
     const template = document.getElementById("playlistTemplate");
+    const formMessage = document.getElementById("formMessage");
+
+    function setFormMessage(message, type = "") {
+      formMessage.textContent = message;
+      formMessage.className = `form-message${type ? ` ${type}` : ""}`;
+    }
+
+    function getPlaylistId(playlistLink) {
+      try {
+        const parsedUrl = new URL(playlistLink);
+        if (parsedUrl.hostname.includes("youtu.be")) {
+          const searchList = parsedUrl.searchParams.get("list");
+          return searchList;
+        }
+        if (parsedUrl.hostname.includes("youtube.com")) {
+          return parsedUrl.searchParams.get("list");
+        }
+      } catch {
+        return "";
+      }
+      return "";
+    }
+
+    async function fetchPlaylistVideos(playlistId) {
+      const feedUrl = `https://www.youtube.com/feeds/videos.xml?playlist_id=${encodeURIComponent(playlistId)}`;
+      const sources = [
+        feedUrl,
+        `https://api.allorigins.win/raw?url=${encodeURIComponent(feedUrl)}`
+      ];
+
+      let lastError = null;
+      for (const sourceUrl of sources) {
+        try {
+          const response = await fetch(sourceUrl);
+          if (!response.ok) {
+            throw new Error(`Request failed: ${response.status}`);
+          }
+          const xmlText = await response.text();
+          const xmlDoc = new DOMParser().parseFromString(xmlText, "application/xml");
+          if (xmlDoc.querySelector("parsererror")) {
+            throw new Error("Unable to parse playlist feed.");
+          }
+
+          const entries = Array.from(xmlDoc.querySelectorAll("entry"));
+          const videos = entries.map((entry) => {
+            const titleNode = entry.querySelector("title");
+            const linkNode = entry.querySelector("link[rel='alternate']");
+            const videoIdNode = entry.querySelector("yt\\:videoId, videoId");
+            const url = linkNode?.getAttribute("href") || (videoIdNode ? `https://www.youtube.com/watch?v=${videoIdNode.textContent}` : "#");
+
+            return {
+              title: titleNode?.textContent?.trim() || "Untitled Video",
+              done: false,
+              url
+            };
+          });
+
+          if (!videos.length) {
+            throw new Error("No videos found in this playlist.");
+          }
+
+          return videos;
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      throw lastError || new Error("Unable to fetch playlist videos.");
+    }
 
     function createVideoRow(video, playlistIndex, videoIndex) {
       const row = document.createElement("div");
@@ -558,28 +639,48 @@
       renderPlaylists();
     }
 
-    document.getElementById("playlistForm").addEventListener("submit", (event) => {
+    document.getElementById("playlistForm").addEventListener("submit", async (event) => {
       event.preventDefault();
       const nameInput = document.getElementById("playlistName");
       const linkInput = document.getElementById("playlistLink");
+      const submitButton = event.target.querySelector("button[type='submit']");
 
       const title = nameInput.value.trim();
       const link = linkInput.value.trim();
+      const playlistId = getPlaylistId(link);
 
-      if (!title || !link) return;
+      if (!title || !link) {
+        setFormMessage("Please enter both playlist name and playlist link.", "error");
+        return;
+      }
 
-      state.playlists.unshift({
-        title,
-        link,
-        videos: [
-          { title: "Lecture 1 – Introduction", done: false, url: link },
-          { title: "Lecture 2 – Transfer Function", done: false, url: link },
-          { title: "Lecture 3 – Block Diagram", done: false, url: link }
-        ]
-      });
+      if (!playlistId) {
+        setFormMessage("Please provide a valid YouTube playlist URL that contains list=...", "error");
+        return;
+      }
 
-      event.target.reset();
-      render();
+      submitButton.disabled = true;
+      submitButton.textContent = "Detecting videos...";
+      setFormMessage("Fetching playlist videos from YouTube feed...", "");
+
+      try {
+        const videos = await fetchPlaylistVideos(playlistId);
+
+        state.playlists.unshift({
+          title,
+          link,
+          videos
+        });
+
+        event.target.reset();
+        render();
+        setFormMessage(`Added \"${title}\" with ${videos.length} detected videos.`, "success");
+      } catch (error) {
+        setFormMessage(`Could not detect videos automatically. ${error.message}`, "error");
+      } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = "Add Playlist";
+      }
     });
 
     document.getElementById("themeToggle").addEventListener("click", () => {
